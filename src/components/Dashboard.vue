@@ -1,99 +1,131 @@
 <template>
-  <div class="dashboard-container">
-    <div class="dashboard-card">
-      <div class="card-header">
-        <h2 class="card-title">🔍 Pokédex Search</h2>
-        <div class="search-icon">⚡</div>
-      </div>
-
-      <div class="search-section">
-        <div class="input-container">
-          <input 
-            v-model="pokemonName" 
-            @keyup.enter="fetchPokemon" 
-            placeholder="Enter Pokémon name or number..." 
-            class="pokemon-input"
+  <div class="dashboard">
+    <!-- Search Section -->
+    <div class="search-section">
+      <div class="search-container">
+        <h2 class="section-title">Pokédex Search</h2>
+        <div class="search-input-group">
+          <input
+            v-model="searchQuery"
+            @keyup.enter="searchPokemon"
+            type="text"
+            placeholder="Enter Pokémon name..."
+            class="search-input"
+            :disabled="loading"
           />
-          <button @click="fetchPokemon" class="search-btn">
-            <span class="btn-text">Search</span>
-            <span class="btn-icon">🔍</span>
+          <button @click="searchPokemon" class="search-btn" :disabled="loading || !searchQuery.trim()">
+            <span v-if="loading">🔍</span>
+            <span v-else>Search</span>
           </button>
         </div>
-      </div>
-
-      <div v-if="loading" class="loading-container">
-        <div class="pokeball-loader"></div>
-        <p class="loading-text">Searching for Pokémon...</p>
-      </div>
-
-      <div v-if="error" class="error-container">
-        <div class="error-icon">❌</div>
-        <p class="error-text">{{ error }}</p>
-        <button @click="clearError" class="retry-btn">Try Again</button>
-      </div>
-
-      <div v-if="pokemon" class="pokemon-display">
-        <div class="pokemon-card">
-          <div class="pokemon-image-container">
-            <img :src="pokemon.sprites.front_default" class="pokemon-image" alt="Pokémon"/>
-            <div class="pokemon-id">#{{ pokemon.id.toString().padStart(3, '0') }}</div>
+        
+        <div v-if="searchResult" class="search-result">
+          <div class="pokemon-detail-card">
+            <div class="pokemon-image-container">
+              <img :src="searchResult.image" :alt="searchResult.name" class="pokemon-image" />
+            </div>
+            <div class="pokemon-info">
+              <h3 class="pokemon-name">#{{ searchResult.id }} {{ searchResult.name }}</h3>
+              <div class="pokemon-types">
+                <span v-for="type in searchResult.types" :key="type" class="type-badge" :class="getTypeClass(type)">
+                  {{ type }}
+                </span>
+              </div>
+              <div class="pokemon-stats">
+                <div class="stat-item">
+                  <span class="stat-label">Height:</span>
+                  <span class="stat-value">{{ searchResult.height }}</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">Weight:</span>
+                  <span class="stat-value">{{ searchResult.weight }}</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">Base Exp:</span>
+                  <span class="stat-value">{{ searchResult.base_experience }}</span>
+                </div>
+              </div>
+            </div>
           </div>
-          
-          <div class="pokemon-info">
-            <h3 class="pokemon-name">{{ pokemon.name.charAt(0).toUpperCase() + pokemon.name.slice(1) }}</h3>
-            
-            <div class="types-container">
-              <span 
-                v-for="type in pokemon.types" 
-                :key="type.slot"
-                :class="['type-badge', `type-${type.type.name}`]"
-              >
-                {{ type.type.name.charAt(0).toUpperCase() + type.type.name.slice(1) }}
+        </div>
+        
+        <div v-if="error" class="error-message">
+          {{ error }}
+        </div>
+      </div>
+    </div>
+
+    <!-- Collection Section -->
+    <div class="collection-section">
+      <div class="collection-header">
+        <h2 class="section-title">Pokémon Collection</h2>
+        <button @click="loadRandomPokemon" class="load-more-btn" :disabled="loading">
+          Load Random Pokémon
+        </button>
+      </div>
+      
+      <div v-if="loading && pokemonCollection.length === 0" class="loading-state">
+        <div class="loading-spinner"></div>
+        <p>Loading Pokémon...</p>
+      </div>
+      
+      <div v-else class="pokemon-grid">
+        <div 
+          v-for="pokemon in pokemonCollection" 
+          :key="pokemon.id" 
+          class="pokemon-card"
+          @click="selectPokemon(pokemon)"
+        >
+          <img :src="pokemon.image" :alt="pokemon.name" class="card-image" />
+          <div class="card-info">
+            <h4 class="card-name">#{{ pokemon.id }} {{ pokemon.name }}</h4>
+            <div class="card-types">
+              <span v-for="type in pokemon.types" :key="type" class="type-badge small" :class="getTypeClass(type)">
+                {{ type }}
               </span>
             </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
-            <div class="stats-grid">
-              <div class="stat-item">
-                <span class="stat-label">Height</span>
-                <span class="stat-value">{{ pokemon.height / 10 }}m</span>
-              </div>
-              <div class="stat-item">
-                <span class="stat-label">Weight</span>
-                <span class="stat-value">{{ pokemon.weight / 10 }}kg</span>
-              </div>
-              <div class="stat-item">
-                <span class="stat-label">Base XP</span>
-                <span class="stat-value">{{ pokemon.base_experience }}</span>
-              </div>
+    <!-- Detail Modal -->
+    <div v-if="selectedPokemon" class="modal-overlay" @click="selectedPokemon = null">
+      <div class="modal-content" @click.stop>
+        <button @click="selectedPokemon = null" class="close-btn">&times;</button>
+        <div class="modal-pokemon-detail">
+          <div class="modal-image-container">
+            <img :src="selectedPokemon.image" :alt="selectedPokemon.name" class="modal-image" />
+          </div>
+          <div class="modal-info">
+            <h2 class="modal-name">#{{ selectedPokemon.id }} {{ selectedPokemon.name }}</h2>
+            <div class="modal-types">
+              <span v-for="type in selectedPokemon.types" :key="type" class="type-badge" :class="getTypeClass(type)">
+                {{ type }}
+              </span>
             </div>
-
-            <div class="abilities-section">
-              <h4 class="abilities-title">Abilities</h4>
+            <div class="modal-abilities" v-if="selectedPokemon.abilities">
+              <h4>Abilities:</h4>
               <div class="abilities-list">
-                <span 
-                  v-for="ability in pokemon.abilities" 
-                  :key="ability.slot"
-                  class="ability-badge"
-                >
-                  {{ ability.ability.name.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase()) }}
+                <span v-for="ability in selectedPokemon.abilities" :key="ability" class="ability-badge">
+                  {{ ability }}
                 </span>
               </div>
             </div>
-          </div>
-        </div>
-      </div>
-
-      <div v-if="!pokemon && !loading && !error" class="welcome-message">
-        <div class="welcome-icon">🎮</div>
-        <h3 class="welcome-title">Welcome to the Pokédex!</h3>
-        <p class="welcome-text">Search for any Pokémon to see their details, stats, and abilities.</p>
-        <div class="suggestions">
-          <p class="suggestions-title">Try searching for:</p>
-          <div class="suggestion-tags">
-            <span @click="searchSuggestion('pikachu')" class="suggestion-tag">Pikachu</span>
-            <span @click="searchSuggestion('charizard')" class="suggestion-tag">Charizard</span>
-            <span @click="searchSuggestion('blastoise')" class="suggestion-tag">Blastoise</span>
-            <span @click="searchSuggestion('venusaur')" class="suggestion-tag">Venusaur</span>
+            <div class="modal-stats">
+              <div class="stat-item">
+                <span class="stat-label">Height:</span>
+                <span class="stat-value">{{ selectedPokemon.height }}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Weight:</span>
+                <span class="stat-value">{{ selectedPokemon.weight }}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Base Exp:</span>
+                <span class="stat-value">{{ selectedPokemon.base_experience }}</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -102,544 +134,501 @@
 </template>
 
 <script>
-import pokeapiService from '../services/pokeapi.js';
+import { gql } from '@apollo/client/core'
+import apolloClient from '../apollo.js'
+
+// GraphQL queries for graphql‐pokeapi
+const QUERY_POKEMON_BY_NAME = gql`
+  query PokemonByName($name: String!) {
+    pokemon_v2_pokemon(where: {name: {_eq: $name}}) {
+      id
+      name
+      height
+      weight
+      base_experience
+      pokemon_v2_pokemontypes {
+        type: pokemon_v2_type {
+          name
+        }
+      }
+      pokemon_v2_pokemonabilities {
+        ability: pokemon_v2_ability {
+          name
+        }
+      }
+    }
+  }
+`;
+
+const QUERY_POKEMONS = gql`
+  query Pokemons($limit: Int!, $offset: Int!) {
+    pokemon_v2_pokemon(limit: $limit, offset: $offset) {
+      id
+      name
+      pokemon_v2_pokemontypes {
+        type: pokemon_v2_type {
+          name
+        }
+      }
+    }
+  }
+`;
 
 export default {
+  name: 'Dashboard',
   data() {
     return {
-      pokemonName: "",
-      pokemon: null,
+      searchQuery: '',
+      searchResult: null,
+      pokemonCollection: [],
+      selectedPokemon: null,
       loading: false,
       error: null,
-    };
+    }
+  },
+  async mounted() {
+    await this.loadRandomPokemon()
   },
   methods: {
-    async fetchPokemon() {
-      if (!this.pokemonName.trim()) {
-        this.error = "Please enter a Pokémon name or number";
-        return;
-      }
-
-      this.loading = true;
-      this.error = null;
-      this.pokemon = null;
+    async searchPokemon() {
+      if (!this.searchQuery.trim()) return
+      this.loading = true
+      this.error = null
+      this.searchResult = null
 
       try {
-        const searchTerm = this.pokemonName.toLowerCase().trim();
-        
-        // Check if it's a number (ID) or name
-        if (/^\d+$/.test(searchTerm)) {
-          this.pokemon = await pokeapiService.getPokemonById(parseInt(searchTerm));
+        const { data } = await apolloClient.query({
+          query: QUERY_POKEMON_BY_NAME,
+          variables: { name: this.searchQuery.toLowerCase() }
+        })
+
+        if (data && data.pokemon_v2_pokemon.length > 0) {
+          this.searchResult = this.transformPokemon(data.pokemon_v2_pokemon[0])
         } else {
-          this.pokemon = await pokeapiService.getPokemonByName(searchTerm);
+          this.error = 'Pokémon not found'
         }
       } catch (err) {
-        this.error = err.message;
+        console.error('Search error:', err)
+        this.error = 'Error searching Pokémon'
       } finally {
-        this.loading = false;
+        this.loading = false
       }
     },
-    searchSuggestion(name) {
-      this.pokemonName = name;
-      this.fetchPokemon();
+
+    async loadRandomPokemon() {
+      this.loading = true
+      this.error = null
+      try {
+        const limit = 12
+        const offset = Math.floor(Math.random() * (151 - limit)) // Gen 1 only
+        const { data } = await apolloClient.query({
+          query: QUERY_POKEMONS,
+          variables: { limit, offset }
+        })
+
+        if (data && data.pokemon_v2_pokemon) {
+          this.pokemonCollection = data.pokemon_v2_pokemon.map(p => this.transformPokemon(p))
+        }
+      } catch (err) {
+        console.error('Load random error:', err)
+        this.error = 'Error loading collection'
+      } finally {
+        this.loading = false
+      }
     },
-    clearError() {
-      this.error = null;
+
+    selectPokemon(poke) {
+      this.selectedPokemon = poke
     },
-  },
-};
+
+    transformPokemon(p) {
+      return {
+        id: p.id,
+        name: p.name.charAt(0).toUpperCase() + p.name.slice(1),
+        image: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${p.id}.png`,
+        types: p.pokemon_v2_pokemontypes ? p.pokemon_v2_pokemontypes.map(t => t.type.name) : [],
+        abilities: p.pokemon_v2_pokemonabilities ? p.pokemon_v2_pokemonabilities.map(a => a.ability.name) : [],
+        height: p.height ?? '—',
+        weight: p.weight ?? '—',
+        base_experience: p.base_experience ?? '—',
+      }
+    },
+
+    getTypeClass(type) {
+      const typeClasses = {
+        normal: 'type-normal',
+        fire: 'type-fire',
+        water: 'type-water',
+        electric: 'type-electric',
+        grass: 'type-grass',
+        ice: 'type-ice',
+        fighting: 'type-fighting',
+        poison: 'type-poison',
+        ground: 'type-ground',
+        flying: 'type-flying',
+        psychic: 'type-psychic',
+        bug: 'type-bug',
+        rock: 'type-rock',
+        ghost: 'type-ghost',
+        dragon: 'type-dragon',
+        dark: 'type-dark',
+        steel: 'type-steel',
+        fairy: 'type-fairy',
+      }
+      return typeClasses[type] || 'type-normal'
+    }
+  }
+}
 </script>
 
 <style scoped>
-/* Import Google Fonts */
-@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Orbitron:wght@400;700;900&display=swap');
-
-.dashboard-container {
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 2rem;
-}
-
-.dashboard-card {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  border-radius: 20px;
-  padding: 2rem;
-  box-shadow: 
-    0 20px 40px rgba(0, 0, 0, 0.1),
-    0 0 0 1px rgba(255, 255, 255, 0.2);
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  position: relative;
-  overflow: hidden;
-}
-
-.dashboard-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: linear-gradient(90deg, #FF6B6B, #4ECDC4, #45B7D1, #96CEB4, #FFEAA7);
-  background-size: 200% 100%;
-  animation: gradientShift 3s ease-in-out infinite;
-}
-
-@keyframes gradientShift {
-  0%, 100% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-}
-
-/* Card Header */
-.card-header {
+.dashboard {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 2rem;
-  padding-bottom: 1rem;
-  border-bottom: 2px solid rgba(0, 0, 0, 0.1);
+  flex-direction: column;
+  gap: 2rem;
+  padding: 2rem;
+  font-family: 'Poppins', sans-serif;
+  background: #f6f8fc;
+  min-height: 100vh;
 }
 
-.card-title {
-  font-family: 'Press Start 2P', monospace;
-  font-size: 1.2rem;
-  color: #2F4F4F;
-  text-shadow: 2px 2px 0px rgba(255, 255, 255, 0.8);
-}
-
-.search-icon {
-  font-size: 1.5rem;
-  animation: pulse 2s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.1); }
-}
-
-/* Search Section */
+/* --- Search Section --- */
 .search-section {
-  margin-bottom: 2rem;
+  background: #fff;
+  padding: 1.5rem;
+  border-radius: 1.5rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
 }
 
-.input-container {
+.section-title {
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.search-input-group {
   display: flex;
-  gap: 1rem;
-  align-items: center;
+  gap: 0.5rem;
 }
 
-.pokemon-input {
+.search-input {
   flex: 1;
-  padding: 1rem 1.5rem;
-  border: 3px solid #E0E0E0;
-  border-radius: 15px;
-  font-family: 'Orbitron', monospace;
+  padding: 0.75rem 1rem;
+  border: 2px solid #ddd;
+  border-radius: 0.75rem;
   font-size: 1rem;
-  font-weight: 700;
-  background: rgba(255, 255, 255, 0.9);
-  transition: all 0.3s ease;
-  outline: none;
+  transition: border 0.3s;
 }
 
-.pokemon-input:focus {
-  border-color: #4ECDC4;
-  box-shadow: 0 0 0 3px rgba(78, 205, 196, 0.2);
-  transform: translateY(-2px);
+.search-input:focus {
+  outline: none;
+  border-color: #ff5757;
 }
 
 .search-btn {
-  padding: 1rem 2rem;
-  background: linear-gradient(45deg, #4ECDC4, #44A08D);
-  border: none;
-  border-radius: 15px;
+  background: #ff5757;
   color: white;
-  font-family: 'Orbitron', monospace;
-  font-weight: 700;
-  font-size: 1rem;
+  border: none;
+  padding: 0.75rem 1.25rem;
+  border-radius: 0.75rem;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  box-shadow: 0 8px 15px rgba(78, 205, 196, 0.3);
+  transition: background 0.3s;
 }
 
 .search-btn:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 12px 20px rgba(78, 205, 196, 0.4);
+  background: #e04a4a;
 }
 
-.search-btn:active {
-  transform: translateY(-1px);
+.error-message {
+  margin-top: 1rem;
+  color: #e63946;
+  font-weight: 500;
 }
 
-/* Loading State */
-.loading-container {
-  text-align: center;
-  padding: 3rem;
+/* --- Pokémon Detail --- */
+.search-result {
+  margin-top: 1.5rem;
 }
 
-.pokeball-loader {
-  width: 60px;
-  height: 60px;
-  border: 4px solid #E0E0E0;
-  border-top: 4px solid #FF6B6B;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 1rem;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.loading-text {
-  font-family: 'Orbitron', monospace;
-  font-weight: 700;
-  color: #666;
-  font-size: 1.1rem;
-}
-
-/* Error State */
-.error-container {
-  text-align: center;
-  padding: 2rem;
-  background: rgba(255, 107, 107, 0.1);
-  border-radius: 15px;
-  border: 2px solid rgba(255, 107, 107, 0.3);
-}
-
-.error-icon {
-  font-size: 3rem;
-  margin-bottom: 1rem;
-}
-
-.error-text {
-  font-family: 'Orbitron', monospace;
-  font-weight: 700;
-  color: #D32F2F;
-  margin-bottom: 1rem;
-  font-size: 1.1rem;
-}
-
-.retry-btn {
-  padding: 0.8rem 1.5rem;
-  background: linear-gradient(45deg, #FF6B6B, #FF8E53);
-  border: none;
-  border-radius: 10px;
-  color: white;
-  font-family: 'Orbitron', monospace;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.retry-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 15px rgba(255, 107, 107, 0.3);
-}
-
-/* Pokemon Display */
-.pokemon-display {
-  animation: slideIn 0.5s ease-out;
-}
-
-@keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.pokemon-card {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(240, 248, 255, 0.9));
-  border-radius: 20px;
-  padding: 2rem;
-  border: 3px solid rgba(78, 205, 196, 0.3);
-  box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
+.pokemon-detail-card {
+  display: flex;
+  gap: 1.5rem;
+  background: #fafafa;
+  padding: 1rem;
+  border-radius: 1rem;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.05);
 }
 
 .pokemon-image-container {
-  text-align: center;
-  position: relative;
-  margin-bottom: 2rem;
+  flex: 0 0 120px;
 }
 
 .pokemon-image {
-  width: 200px;
-  height: 200px;
+  width: 120px;
+  height: 120px;
   object-fit: contain;
-  filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.2));
-  transition: transform 0.3s ease;
 }
 
-.pokemon-image:hover {
-  transform: scale(1.05);
-}
-
-.pokemon-id {
-  position: absolute;
-  top: -10px;
-  right: 50%;
-  transform: translateX(50%);
-  background: linear-gradient(45deg, #FFD700, #FFA500);
-  color: #2F4F4F;
-  padding: 0.5rem 1rem;
-  border-radius: 20px;
-  font-family: 'Press Start 2P', monospace;
-  font-size: 0.8rem;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+.pokemon-info {
+  flex: 1;
 }
 
 .pokemon-name {
-  font-family: 'Press Start 2P', monospace;
-  font-size: 1.5rem;
-  color: #2F4F4F;
-  text-align: center;
-  margin-bottom: 1rem;
-  text-shadow: 2px 2px 0px rgba(255, 255, 255, 0.8);
+  font-size: 1.25rem;
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+  text-transform: capitalize;
 }
 
-/* Types */
-.types-container {
+.pokemon-types {
   display: flex;
-  justify-content: center;
-  gap: 1rem;
-  margin-bottom: 2rem;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
 }
 
 .type-badge {
-  padding: 0.5rem 1rem;
-  border-radius: 20px;
-  font-family: 'Orbitron', monospace;
-  font-weight: 700;
-  font-size: 0.9rem;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  padding: 0.25rem 0.75rem;
+  border-radius: 1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #fff;
+  text-transform: capitalize;
 }
 
-.type-fire { background: linear-gradient(45deg, #FF6B6B, #FF8E53); color: white; }
-.type-water { background: linear-gradient(45deg, #4ECDC4, #44A08D); color: white; }
-.type-grass { background: linear-gradient(45deg, #96CEB4, #7FCDCD); color: #2F4F4F; }
-.type-electric { background: linear-gradient(45deg, #FFD700, #FFA500); color: #2F4F4F; }
-.type-psychic { background: linear-gradient(45deg, #DDA0DD, #DA70D6); color: white; }
-.type-ice { background: linear-gradient(45deg, #B0E0E6, #87CEEB); color: #2F4F4F; }
-.type-dragon { background: linear-gradient(45deg, #9370DB, #8A2BE2); color: white; }
-.type-dark { background: linear-gradient(45deg, #2F4F4F, #1C1C1C); color: white; }
-.type-fairy { background: linear-gradient(45deg, #FFB6C1, #FFC0CB); color: #2F4F4F; }
-.type-fighting { background: linear-gradient(45deg, #CD853F, #A0522D); color: white; }
-.type-poison { background: linear-gradient(45deg, #9370DB, #8A2BE2); color: white; }
-.type-ground { background: linear-gradient(45deg, #DEB887, #D2B48C); color: #2F4F4F; }
-.type-flying { background: linear-gradient(45deg, #87CEEB, #B0E0E6); color: #2F4F4F; }
-.type-bug { background: linear-gradient(45deg, #9ACD32, #ADFF2F); color: #2F4F4F; }
-.type-rock { background: linear-gradient(45deg, #A0522D, #8B4513); color: white; }
-.type-ghost { background: linear-gradient(45deg, #9370DB, #8A2BE2); color: white; }
-.type-steel { background: linear-gradient(45deg, #C0C0C0, #A9A9A9); color: #2F4F4F; }
-.type-normal { background: linear-gradient(45deg, #D3D3D3, #A9A9A9); color: #2F4F4F; }
+.type-badge.small {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.6rem;
+}
 
-/* Stats Grid */
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 1rem;
-  margin-bottom: 2rem;
+.type-normal { background: #a8a77a; }
+.type-fire { background: #ee8130; }
+.type-water { background: #6390f0; }
+.type-electric { background: #f7d02c; color: #000; }
+.type-grass { background: #7ac74c; }
+.type-ice { background: #96d9d6; }
+.type-fighting { background: #c22e28; }
+.type-poison { background: #a33ea1; }
+.type-ground { background: #e2bf65; }
+.type-flying { background: #a98ff3; }
+.type-psychic { background: #f95587; }
+.type-bug { background: #a6b91a; }
+.type-rock { background: #b6a136; }
+.type-ghost { background: #735797; }
+.type-dragon { background: #6f35fc; }
+.type-dark { background: #705746; }
+.type-steel { background: #b7b7ce; }
+.type-fairy { background: #d685ad; }
+
+.pokemon-stats, .modal-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 
 .stat-item {
-  background: rgba(255, 255, 255, 0.7);
-  padding: 1rem;
-  border-radius: 15px;
-  text-align: center;
-  border: 2px solid rgba(78, 205, 196, 0.2);
-  transition: all 0.3s ease;
-}
-
-.stat-item:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
 }
 
 .stat-label {
-  display: block;
-  font-family: 'Orbitron', monospace;
-  font-weight: 700;
-  color: #666;
-  font-size: 0.9rem;
-  margin-bottom: 0.5rem;
-  text-transform: uppercase;
-  letter-spacing: 1px;
+  font-weight: 600;
+  color: #555;
 }
 
-.stat-value {
-  display: block;
-  font-family: 'Press Start 2P', monospace;
-  font-size: 1rem;
-  color: #2F4F4F;
+/* --- Collection --- */
+.collection-section {
+  background: #fff;
+  padding: 1.5rem;
+  border-radius: 1.5rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
 }
 
-/* Abilities */
-.abilities-section {
+.collection-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.load-more-btn {
+  background: #48cae4;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.25rem;
+  border-radius: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.load-more-btn:hover {
+  background: #0096c7;
+}
+
+.pokemon-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.pokemon-card {
+  background: #fafafa;
+  border-radius: 1rem;
+  padding: 1rem;
   text-align: center;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
 }
 
-.abilities-title {
-  font-family: 'Press Start 2P', monospace;
-  font-size: 1rem;
-  color: #2F4F4F;
+.pokemon-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+}
+
+.card-image {
+  width: 100px;
+  height: 100px;
+  object-fit: contain;
+  margin-bottom: 0.5rem;
+}
+
+.card-name {
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.card-types {
+  display: flex;
+  justify-content: center;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+}
+
+/* --- Modal --- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 50;
+}
+
+.modal-content {
+  background: #fff;
+  border-radius: 1rem;
+  padding: 2rem;
+  max-width: 600px;
+  width: 100%;
+  position: relative;
+}
+
+.close-btn {
+  position: absolute;
+  right: 1rem;
+  top: 1rem;
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+
+.modal-pokemon-detail {
+  display: flex;
+  gap: 1.5rem;
+}
+
+.modal-image-container {
+  flex: 0 0 150px;
+}
+
+.modal-image {
+  width: 150px;
+  height: 150px;
+  object-fit: contain;
+}
+
+.modal-info {
+  flex: 1;
+}
+
+.modal-name {
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+  text-transform: capitalize;
+}
+
+.modal-types {
+  display: flex;
+  gap: 0.5rem;
   margin-bottom: 1rem;
-  text-shadow: 1px 1px 0px rgba(255, 255, 255, 0.8);
 }
 
 .abilities-list {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
   gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .ability-badge {
-  background: linear-gradient(45deg, #A8E6CF, #7FCDCD);
-  color: #2F4F4F;
-  padding: 0.5rem 1rem;
-  border-radius: 15px;
-  font-family: 'Orbitron', monospace;
-  font-weight: 700;
+  background: #eee;
+  padding: 0.3rem 0.7rem;
+  border-radius: 0.5rem;
   font-size: 0.8rem;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
 }
 
-.ability-badge:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
-}
-
-/* Welcome Message */
-.welcome-message {
-  text-align: center;
-  padding: 3rem 2rem;
-  background: linear-gradient(135deg, rgba(168, 230, 207, 0.2), rgba(127, 205, 205, 0.2));
-  border-radius: 20px;
-  border: 2px solid rgba(168, 230, 207, 0.3);
-}
-
-.welcome-icon {
-  font-size: 4rem;
-  margin-bottom: 1rem;
-  animation: bounce 2s ease-in-out infinite;
-}
-
-.welcome-title {
-  font-family: 'Press Start 2P', monospace;
-  font-size: 1.2rem;
-  color: #2F4F4F;
-  margin-bottom: 1rem;
-  text-shadow: 2px 2px 0px rgba(255, 255, 255, 0.8);
-}
-
-.welcome-text {
-  font-family: 'Orbitron', monospace;
-  font-weight: 700;
-  color: #666;
-  margin-bottom: 2rem;
-  font-size: 1.1rem;
-  line-height: 1.6;
-}
-
-.suggestions {
-  margin-top: 2rem;
-}
-
-.suggestions-title {
-  font-family: 'Orbitron', monospace;
-  font-weight: 700;
-  color: #2F4F4F;
-  margin-bottom: 1rem;
-  font-size: 1rem;
-}
-
-.suggestion-tags {
+/* --- Congratulations Overlay --- */
+.congrats-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
   display: flex;
-  flex-wrap: wrap;
   justify-content: center;
-  gap: 0.5rem;
+  align-items: center;
+  z-index: 100;
+  animation: fadeIn 0.4s ease;
 }
 
-.suggestion-tag {
-  background: linear-gradient(45deg, #FF6B6B, #FF8E53);
-  color: white;
-  padding: 0.5rem 1rem;
-  border-radius: 20px;
-  font-family: 'Orbitron', monospace;
-  font-weight: 700;
-  font-size: 0.9rem;
+.congrats-box {
+  background: white;
+  padding: 2rem 3rem;
+  border-radius: 1rem;
+  text-align: center;
+  animation: popIn 0.4s ease;
+}
+
+.congrats-title {
+  font-size: 2rem;
+  font-weight: bold;
+  color: #38b000;
+  margin-bottom: 1rem;
+}
+
+.play-again-btn {
+  background: #ffb703;
+  color: #000;
+  border: none;
+  padding: 0.8rem 1.5rem;
+  border-radius: 0.75rem;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 8px rgba(255, 107, 107, 0.3);
+  transition: background 0.3s;
 }
 
-.suggestion-tag:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 8px 15px rgba(255, 107, 107, 0.4);
+.play-again-btn:hover {
+  background: #faa307;
 }
 
-/* Responsive Design */
-@media (max-width: 768px) {
-  .dashboard-container {
-    padding: 1rem;
-  }
-  
-  .dashboard-card {
-    padding: 1.5rem;
-  }
-  
-  .input-container {
-    flex-direction: column;
-    gap: 1rem;
-  }
-  
-  .pokemon-image {
-    width: 150px;
-    height: 150px;
-  }
-  
-  .stats-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .types-container {
-    flex-direction: column;
-    align-items: center;
-  }
-  
-  .suggestion-tags {
-    flex-direction: column;
-    align-items: center;
-  }
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
-@media (max-width: 480px) {
-  .card-title {
-    font-size: 1rem;
-  }
-  
-  .pokemon-name {
-    font-size: 1.2rem;
-  }
-  
-  .pokemon-image {
-    width: 120px;
-    height: 120px;
-  }
-  
-  .welcome-title {
-    font-size: 1rem;
-  }
+@keyframes popIn {
+  from { transform: scale(0.7); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
 }
 </style>
