@@ -48,7 +48,7 @@
           <span class="btn-icon">🏠</span>
           Home
         </button>
-        <h1 class="app-title">Pokémon Dashboard</h1>
+        <h1 class="app-title">Pokémon</h1>
         <div class="header-spacer"></div>
       </header>
 
@@ -126,12 +126,8 @@ export default {
   content: '';
   position: fixed;
   inset: 0;
-  background-image:
-    url('https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/1.png'),
-    url('https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/4.png'),
-    url('https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/7.png'),
-    url('https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/25.png');
-  background-repeat: repeat, repeat, repeat, repeat;
+
+ 
   background-size: 320px auto, 280px auto, 320px auto, 260px auto;
   background-position: 0 0, 140px 180px, 280px 360px, 220px 80px;
   opacity: 0.05;
@@ -142,7 +138,10 @@ export default {
 /* Welcome Screen Styles */
 .welcome-screen {
   height: 100vh;
-  background: linear-gradient(180deg, rgba(135, 206, 235, 0.85) 0%, rgba(152, 251, 152, 0.85) 100%);
+  background-image: url('https://images7.alphacoders.com/662/thumb-1920-662102.png');
+  background-size: cover;       /* cover the whole screen */
+  background-position: center;  /* center the image */
+  background-repeat: no-repeat; /* don't repeat */
   position: relative;
   display: flex;
   flex-direction: column;
@@ -156,40 +155,32 @@ export default {
 .welcome-screen::before {
   content: '';
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-image: 
-    radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.3) 2px, transparent 2px),
-    radial-gradient(circle at 80% 80%, rgba(255, 255, 255, 0.2) 1px, transparent 1px),
-    radial-gradient(circle at 40% 60%, rgba(255, 255, 255, 0.25) 1.5px, transparent 1.5px);
-  background-size: 50px 50px, 30px 30px, 40px 40px;
-  animation: float 20s ease-in-out infinite;
-  z-index: 1;
+  inset: 0;
+  background-image: url('https://images7.alphacoders.com/662/thumb-1920-662102.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+
+  /* Blur and brighten only the background */
+  filter: blur(4px) brightness(1.3);
+
+  z-index: 0;
+  pointer-events: none;
 }
+
+/* Ensure logo, text, and buttons are on top */
+.pokemon-logo,
+.welcome-content,
+.navigation-buttons {
+  position: relative;
+  z-index: 10;
+}
+
+
 
 /* Big Pokémon background */
 .welcome-screen::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image:
-    url('https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/1.png'),
-    url('https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/4.png'),
-    url('https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/7.png'),
-    url('https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/25.png');
-  background-repeat: repeat, repeat, repeat, repeat;
-  background-size: 220px auto, 200px auto, 220px auto, 180px auto;
-  background-position:
-    0 0,
-    100px 140px,
-    200px 280px,
-    300px 60px;
-  opacity: 0.06;
-  filter: saturate(115%);
-  z-index: 2;
-  pointer-events: none;
+ 
 }
 
 @keyframes float {
@@ -207,7 +198,7 @@ export default {
 
 .logo-text {
   font-family: 'Press Start 2P', monospace;
-  font-size: clamp(1.5rem, 6vw, 3rem);
+  font-size: clamp(2rem, 8vw, 4rem); /* bigger size */
   color: #FFD700;
   text-shadow: 
     4px 4px 0px #0066CC,
@@ -215,8 +206,9 @@ export default {
     12px 12px 20px rgba(0, 0, 0, 0.3);
   transform: perspective(500px) rotateX(15deg);
   animation: logoGlow 3s ease-in-out infinite alternate;
-  margin-bottom: 0.3rem;
+  margin-bottom: 0.5rem; /* adjust spacing */
 }
+
 
 .logo-tm {
   font-family: 'Press Start 2P', monospace;
@@ -283,8 +275,8 @@ export default {
 }
 
 .main-pokemon {
-  width: 400px;
-  height: 400px;
+  width: 500px;  /* larger than before */
+  height: 500px;
   object-fit: contain;
   image-rendering: -webkit-optimize-contrast;
   image-rendering: crisp-edges;
@@ -295,9 +287,12 @@ export default {
 }
 
 .main-pokemon:hover {
-  transform: scale(1.1);
+  transform: scale(1.15);
   filter: drop-shadow(0 30px 60px rgba(0, 0, 0, 0.5));
 }
+
+
+
 
 @keyframes pokemonFloat {
   0%, 100% { 
@@ -336,18 +331,22 @@ export default {
 
 .welcome-title {
   font-family: 'Press Start 2P', monospace;
-  font-size: clamp(0.7rem, 2.5vw, 1rem);
+  font-size: clamp(1rem, 4vw, 1.5rem); /* bigger title */
   color: #2F4F4F;
-  margin-bottom: 0.5rem;
+  margin-bottom: 1rem;
   text-shadow: 2px 2px 0px #FFFFFF;
+  text-align: center;
 }
 
 .welcome-subtitle {
-  font-size: 0.9rem;
-  color: #4682B4;
+  font-size: clamp(0.9rem, 3vw, 1.2rem); /* bigger subtitle */
+  color: #b246b4;
   margin-bottom: 2rem;
   font-weight: 700;
+  text-align: center;
 }
+
+
 
 /* Navigation Buttons */
 .navigation-buttons {

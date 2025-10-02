@@ -213,6 +213,7 @@ export default {
       } finally {
         this.loading = false
       }
+      
     },
 
     async loadRandomPokemon() {
@@ -275,8 +276,10 @@ export default {
         steel: 'type-steel',
         fairy: 'type-fairy',
       }
+      
       return typeClasses[type] || 'type-normal'
     }
+    
   }
 }
 </script>
